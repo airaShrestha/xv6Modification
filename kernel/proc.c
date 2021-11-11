@@ -439,31 +439,57 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-  struct proc *p;
-  struct cpu *c = mycpu();
   
-  c->proc = 0;
-  for(;;){
-    // Avoid deadlock by ensuring that devices can interrupt.
-    intr_on();
+	struct proc *p;
+	struct cpu *c = mycpu();
+	c->proc = 0;
+	int chosenTicket;
 
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+//	cprintf("Calling proc::lottery_scheduler\n");
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-      }
-      release(&p->lock);
-    }
-  }
+	int tot_tickets = 0;
+	int counter = 0;
+
+	for(;;) {
+		//	Enables interrupts on this processor
+		intr_on();
+		
+		//	Get the lock
+		
+		
+		//	Find the total number of tickets in the system
+		tot_tickets = 0;
+		 for(p = proc; p < &proc[NPROC]; p++) {
+		      acquire(&p->lock);
+		
+			if (p->state != RUNNABLE) {
+				continue;
+			}
+			tot_tickets += p->tickets;
+		}
+
+		//	Grab a random ticket from the ticket list		
+		chosenTicket = rand() % tot_tickets;
+
+		counter = 0;
+		for (p = proc; p < &proc[NPROC]; p++) {
+			if (p->state != RUNNABLE) continue;
+			++counter;
+			if (counter != chosenTicket) continue;
+			
+			//	Schedule this process
+			c->proc = p;
+			//switchuvm(p);
+			p->state = RUNNING;
+			swtch(&c->lottery_scheduler,&p->context);
+			//swtch(&c->context, &p->context);
+	
+			//kvminithart();
+			c->proc = 0;
+			break;
+		}
+		release(&p->lock);
+	}
 }
 
 // Switch to scheduler.  Must hold only p->lock
@@ -748,7 +774,7 @@ int rand() {
 }
 //#ifdef LOTTERY 
 //lottery scheduler
-void
+/*void
 lottery_scheduler(void)
 {
 	struct proc *p;
@@ -803,7 +829,7 @@ lottery_scheduler(void)
 	}
 	//cprintf("This should never print. In proc::lottery_schduler\n");
 }
-//#endif
+//#endif*/
 
 //	Stride Scheduler
 
