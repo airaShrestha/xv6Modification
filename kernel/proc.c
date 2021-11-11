@@ -443,51 +443,44 @@ scheduler(void)
 	struct proc *p;
 	struct cpu *c = mycpu();
 	c->proc = 0;
-	int chosenTicket;
+	float min_stride;
+	struct proc *min_proc = myproc();
 
-//	cprintf("Calling proc::lottery_scheduler\n");
+	//cprintf("Calling proc::stride_scheduler\n");
 
-	int tot_tickets = 0;
-	int counter = 0;
+	//	Run 5ever
+	for (;;) {
 
-	for(;;) {
-		//	Enables interrupts on this processor
+		// Enables interrupts on this processor
 		intr_on();
-		
-		//	Get the lock
-		
-		
-		//	Find the total number of tickets in the system
-		tot_tickets = 0;
-		 for(p = proc; p < &proc[NPROC]; p++) {
-		      acquire(&p->lock);
-		
-			if (p->state != RUNNABLE) {
-				continue;
-			}
-			tot_tickets += p->tickets;
-		}
 
-		//	Grab a random ticket from the ticket list		
-		chosenTicket = rand() % tot_tickets;
+		// Get the lock
+		
 
-		counter = 0;
+		min_stride = 1000000000;
 		for (p = proc; p < &proc[NPROC]; p++) {
+			acquire(&p->lock);
 			if (p->state != RUNNABLE) continue;
-			++counter;
-			if (counter != chosenTicket) continue;
-			
-			//	Schedule this process
-			c->proc = p;
-			//switchuvm(p);
-			p->state = RUNNING;
-			swtch(&c->lottery_scheduler,&p->context);
-			//swtch(&c->context, &p->context);
-	
-			//kvminithart();
-			c->proc = 0;
-			break;
+
+			if (p->stride < min_stride) {
+				min_stride = p->stride;
+				min_proc = p;
+			}
 		}
+		min_proc->stride += min_proc->original_stride;	
+		++min_proc->numRan;	
+		//cprintf("Process %d's stride: %d\n", min_proc->pid, min_proc->stride);
+		c->proc = min_proc;
+		//switchuvm(min_proc);
+		min_proc->state = RUNNING;
+		
+		//swtch(&c->stride_scheduler, &min_proc->context);
+		swtch(&c->context, &p->context);
+		//kvminithart();
+
+		//	Process is done running now
+		//	It should have changed its p->state before coming back
+		c->proc = 0;
 		release(&p->lock);
 	}
 }
@@ -834,7 +827,7 @@ lottery_scheduler(void)
 //	Stride Scheduler
 
 
-void 
+/*void 
 stride_scheduler(void)
 {
 	struct proc *p;
@@ -881,4 +874,4 @@ stride_scheduler(void)
 		release(&p->lock);
 	}
 	//cprintf("This should never print. In proc::stride_scheduler\n");
-}
+}*/
